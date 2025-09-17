@@ -1,0 +1,9 @@
+{
+    "hold_time": 3.0,
+    "wait_after_hold": 2.0,
+    "fast_click_time": 5.0,
+    "click_interval": 0.2,
+    "cycle_interval": 3.0,
+    "start_key": "Key.f6",
+    "pause_key": "Key.f7"
+}

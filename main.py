@@ -4,6 +4,8 @@ from pynput.mouse import Button, Controller
 from pynput import keyboard
 import threading
 import time
+import json
+import os
 
 # --- Логика кликера ---
 mouse = Controller()
@@ -17,7 +19,49 @@ thread = None
 
 start_key = keyboard.Key.f6
 pause_key = keyboard.Key.f7
+SETTINGS_FILE = "settings.json"
 
+# --- Сохранение/загрузка ---
+def save_settings():
+    data = {
+        "hold_time": hold_time,
+        "wait_after_hold": wait_after_hold,
+        "fast_click_time": fast_click_time,
+        "click_interval": click_interval,
+        "cycle_interval": cycle_interval,
+        "start_key": str(start_key),
+        "pause_key": str(pause_key)
+    }
+    with open(SETTINGS_FILE, "w") as f:
+        json.dump(data, f, indent=4)
+
+def load_settings():
+    global hold_time, wait_after_hold, fast_click_time, click_interval, cycle_interval
+    global start_key, pause_key
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, "r") as f:
+                content = f.read().strip()
+                if not content: return
+                data = json.loads(content)
+            hold_time = data.get("hold_time", hold_time)
+            wait_after_hold = data.get("wait_after_hold", wait_after_hold)
+            fast_click_time = data.get("fast_click_time", fast_click_time)
+            click_interval = data.get("click_interval", click_interval)
+            cycle_interval = data.get("cycle_interval", cycle_interval)
+
+            start_key_str = data.get("start_key", str(start_key))
+            pause_key_str = data.get("pause_key", str(pause_key))
+
+            from pynput.keyboard import Key
+            if start_key_str.startswith("Key."): start_key = getattr(Key, start_key_str.split(".")[1])
+            else: start_key = start_key_str
+            if pause_key_str.startswith("Key."): pause_key = getattr(Key, pause_key_str.split(".")[1])
+            else: pause_key = pause_key_str
+        except:
+            print("Ошибка чтения настроек, используются стандартные значения.")
+
+# --- Кликер ---
 def fast_click_for_duration(duration):
     end_time = time.time() + duration
     while clicking and time.time() < end_time:
@@ -93,40 +137,44 @@ global_listener.start()
 
 # --- GUI ---
 root = tk.Tk()
-root.title("💎 Кликер 3-ступени с циклом")
+root.title("Modern Minimal Autoclicker")
 root.geometry("500x550")
-root.configure(bg="#2b2b2b")
+root.configure(bg="#181818")
+load_settings()
 
+# --- Стиль ---
 style = ttk.Style()
 style.theme_use("clam")
-style.configure("TNotebook.Tab", background="#444", foreground="white", padding=[12,5])
-style.configure("TFrame", background="#2b2b2b")
-style.configure("TButton", padding=6, font=("Helvetica", 11, "bold"))
+style.configure("TNotebook.Tab", background="#222", foreground="#fff", padding=[12,6])
+style.configure("TFrame", background="#181818")
+style.configure("TButton", padding=6, font=("Inter", 11, "bold"))
 
+# --- Вкладки ---
 notebook = ttk.Notebook(root)
 notebook.pack(expand=True, fill="both", padx=10, pady=10)
 
 # --- Вкладка Кликера ---
 frame_clicker = ttk.Frame(notebook)
-notebook.add(frame_clicker, text="🚀 Кликер")
+notebook.add(frame_clicker, text="Кликер")
 
-start_btn = tk.Button(frame_clicker, text="СТАРТ", bg="#4CAF50", fg="white", font=("Helvetica", 14, "bold"),
-                      activebackground="#45a049", command=start_sequence)
-start_btn.pack(pady=10, ipadx=20, ipady=5)
+start_btn = tk.Button(frame_clicker, text="СТАРТ", bg="#0a84ff", fg="white",
+                      font=("Inter", 12, "bold"), relief="flat", activebackground="#006fcf",
+                      command=start_sequence)
+start_btn.pack(pady=10, ipadx=20, ipady=7)
 
-stop_btn = tk.Button(frame_clicker, text="СТОП", bg="#f44336", fg="white", font=("Helvetica", 14, "bold"),
-                     activebackground="#d32f2f", command=stop_clicking, state="disabled")
-stop_btn.pack(pady=10, ipadx=20, ipady=5)
+stop_btn = tk.Button(frame_clicker, text="СТОП", bg="#ff3b30", fg="white",
+                     font=("Inter", 12, "bold"), relief="flat", activebackground="#c1271b",
+                     command=stop_clicking, state="normal")
+stop_btn.pack(pady=10, ipadx=20, ipady=7)
 
-# Настройки в карточках
 def add_setting_card(parent, text, default, var_name):
-    card = tk.Frame(parent, bg="#3c3c3c", bd=2, relief=tk.RIDGE)
-    card.pack(fill="x", pady=5, padx=10)
-    tk.Label(card, text=text, bg="#3c3c3c", fg="white", font=("Helvetica", 10)).pack(side="left", padx=5, pady=5)
-    entry = tk.Entry(card, width=6)
+    frame = tk.Frame(parent, bg="#222222")
+    frame.pack(fill="x", padx=15, pady=6)
+    tk.Label(frame, text=text, bg="#222222", fg="white", font=("Inter", 10)).pack(side="left", padx=5)
+    entry = tk.Entry(frame, width=6, font=("Inter", 10))
     entry.insert(0, str(default))
     entry.pack(side="left", padx=5)
-    tk.Button(card, text="Применить", bg="#607d8b", fg="white",
+    tk.Button(frame, text="Применить", bg="#444", fg="white", relief="flat",
               command=lambda e=entry,v=var_name,t=text: set_value(e,v,t)).pack(side="left", padx=5)
     return entry
 
@@ -138,110 +186,26 @@ entry_cycle = add_setting_card(frame_clicker, "Интервал перед по�
 
 # --- Вкладка Горячих клавиш ---
 frame_hotkeys = ttk.Frame(notebook)
-notebook.add(frame_hotkeys, text="⌨ Горячие клавиши")
+notebook.add(frame_hotkeys, text="Горячие клавиши")
 
-start_label = tk.Label(frame_hotkeys, text=f"Старт = {key_to_str(start_key)}", bg="#2b2b2b", fg="white", font=("Helvetica", 12))
+start_label = tk.Label(frame_hotkeys, text=f"Старт = {key_to_str(start_key)}", bg="#181818", fg="white", font=("Inter", 11))
 start_label.pack(pady=10)
-tk.Button(frame_hotkeys, text="Задать кнопку СТАРТ", bg="#4CAF50", fg="white",
-          command=lambda: set_hotkey(start_label, "start_key")).pack(pady=5, ipadx=10)
+tk.Button(frame_hotkeys, text="Задать кнопку СТАРТ", bg="#0a84ff", fg="white",
+          relief="flat", command=lambda: set_hotkey(start_label, "start_key")).pack(pady=5, ipadx=15, ipady=4)
 
-pause_label = tk.Label(frame_hotkeys, text=f"Пауза = {key_to_str(pause_key)}", bg="#2b2b2b", fg="white", font=("Helvetica", 12))
+pause_label = tk.Label(frame_hotkeys, text=f"Пауза = {key_to_str(pause_key)}", bg="#181818", fg="white", font=("Inter", 11))
 pause_label.pack(pady=10)
-tk.Button(frame_hotkeys, text="Задать кнопку ПАУЗА", bg="#f44336", fg="white",
-          command=lambda: set_hotkey(pause_label, "pause_key")).pack(pady=5, ipadx=10)
+tk.Button(frame_hotkeys, text="Задать кнопку ПАУЗА", bg="#ff3b30", fg="white",
+          relief="flat", command=lambda: set_hotkey(pause_label, "pause_key")).pack(pady=5, ipadx=15, ipady=4)
 
 # --- Статус-бар ---
-status_bar = tk.Label(root, text="Готов", bd=1, relief=tk.SUNKEN, anchor=tk.W, bg="#1e1e1e", fg="white")
+status_bar = tk.Label(root, text="Готов", bd=1, relief="flat", anchor="w", bg="#111", fg="white", font=("Inter", 10))
 status_bar.pack(side="bottom", fill="x")
 
-root.mainloop()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-import json
-import os
-
-SETTINGS_FILE = "settings.json"
-
-def save_settings():
-    data = {
-        "hold_time": hold_time,
-        "wait_after_hold": wait_after_hold,
-        "fast_click_time": fast_click_time,
-        "click_interval": click_interval,
-        "cycle_interval": cycle_interval,
-        "start_key": str(start_key),
-        "pause_key": str(pause_key)
-    }
-    with open(SETTINGS_FILE, "w") as f:
-        json.dump(data, f, indent=4)
-
-def load_settings():
-    global hold_time, wait_after_hold, fast_click_time, click_interval, cycle_interval
-    global start_key, pause_key
-    if os.path.exists(SETTINGS_FILE):
-        try:
-            with open(SETTINGS_FILE, "r") as f:
-                content = f.read().strip()
-                if not content:
-                    return  # пустой файл, ничего не загружаем
-                data = json.loads(content)
-            hold_time = data.get("hold_time", hold_time)
-            wait_after_hold = data.get("wait_after_hold", wait_after_hold)
-            fast_click_time = data.get("fast_click_time", fast_click_time)
-            click_interval = data.get("click_interval", click_interval)
-            cycle_interval = data.get("cycle_interval", cycle_interval)
-
-            start_key_str = data.get("start_key", str(start_key))
-            pause_key_str = data.get("pause_key", str(pause_key))
-
-            from pynput.keyboard import Key
-            if start_key_str.startswith("Key."): start_key = getattr(Key, start_key_str.split(".")[1])
-            else: start_key = start_key_str
-            if pause_key_str.startswith("Key."): pause_key = getattr(Key, pause_key_str.split(".")[1])
-            else: pause_key = pause_key_str
-
-        except (json.JSONDecodeError, AttributeError):
-            print("Файл settings.json поврежден или пустой, используются стандартные настройки.")
-
-
-# В главном коде Tkinter привязываем save_settings к событию выхода
+# --- Закрытие ---
 def on_closing():
     save_settings()
     root.destroy()
-
-# В начале программы вызываем
-load_settings()
 root.protocol("WM_DELETE_WINDOW", on_closing)
+
+root.mainloop()
